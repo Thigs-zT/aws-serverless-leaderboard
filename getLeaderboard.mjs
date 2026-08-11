@@ -18,9 +18,16 @@ export const handler = async (event) => {
 
         const response = await docClient.send(command);
 
+        // Limpa e sanitiza os itens removendo as chaves internas PK e SK
         const leaderboard = (response.Items || [])
             .sort((a, b) => b.score - a.score)
-            .slice(0, 10);
+            .slice(0, 10)
+            .map(item => ({
+                player_id: item.SK.replace("PLAYER#", ""),
+                player_name: item.player_name,
+                score: item.score,
+                updated_at: item.updated_at
+            }));
 
         return {
             statusCode: 200,

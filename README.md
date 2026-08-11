@@ -59,8 +59,7 @@ Response (200 OK):
   "game_id": "SpaceShooter_v1",
   "leaderboard": [
     {
-      "PK": "GAME#SpaceShooter_v1",
-      "SK": "PLAYER#usr_1029",
+      "player_id": "usr_1029",
       "player_name": "AcePlayer",
       "score": 15000,
       "updated_at": "2026-08-11T03:48:11.927Z"
@@ -88,8 +87,7 @@ Invoke-RestMethod -Uri "https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.co
 
 ## Security & Best Practices
 
-Cost Protection: AWS Budgets configured with zero-spend threshold alerts.
-
-IAM Authorization: Role-based access control with scoped permissions for DynamoDB actions.
-
-Data Validation: Input parsing and fallback handling on Lambda execution.
+- **Cost Protection:** AWS Budgets configured with zero-spend threshold alerts.
+- **IAM Authorization:** Role-based access control with scoped permissions for DynamoDB actions.
+- **Data Abstraction:** DynamoDB internal keys (PK/SK) are sanitized at the Lambda layer before returning response payloads.
+- **Data Validation:** Input parsing and fallback handling on Lambda execution.
