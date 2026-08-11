@@ -1,5 +1,7 @@
 # Serverless Game Leaderboard API (AWS)
 
+![Leaderboard API Architecture Diagram](./arquitetura_leaderboard.png)
+
 A fully serverless, highly scalable, and cost-effective REST API backend designed to manage leaderboards and player scores for games. Built using AWS core serverless services, this project implements a single-table design pattern with Amazon DynamoDB.
 
 ## Architecture
