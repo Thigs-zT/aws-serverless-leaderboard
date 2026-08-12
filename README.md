@@ -9,7 +9,7 @@ A fully serverless, highly scalable, and cost-effective REST/HTTP API backend de
 The system uses a 100% serverless architecture deployed on AWS:
 
 - **Amazon API Gateway (HTTP API v2):** Serves as the high-performance public entry point, routing requests to backend compute resources.
-- **AWS Lambda (Node.js 18.x):** Executes stateless business logic for score ingestion, data validation, API key authentication, and leaderboard retrieval.
+- **AWS Lambda (Node.js 24.x):** Executes stateless business logic for score ingestion, data validation, API key authentication, and leaderboard retrieval.
 - **Amazon DynamoDB:** Stores player scores and game metadata using On-Demand capacity for zero idle cost and auto-scaling performance.
 - **AWS SAM (Serverless Application Model):** Manages the entire cloud infrastructure declaratively using `template.yaml`.
 - **Amazon CloudWatch:** Collects execution logs and metrics to monitor system health and latency.
