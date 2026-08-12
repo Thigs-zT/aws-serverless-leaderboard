@@ -1,0 +1,97 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'AWS SAM Template for the Game Leaderboard Serverless API. This template
+  creates DynamoDB (with GSI), Lambdas, and an HTTP API.
+
+  '
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 128
+    Runtime: nodejs18.x
+    Architectures:
+    - x86_64
+    Environment:
+      Variables:
+        TABLE_NAME:
+          Ref: GameScoresTable
+Resources:
+  GameScoresTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: GameScores-SAM
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: PK
+        AttributeType: S
+      - AttributeName: SK
+        AttributeType: S
+      - AttributeName: score
+        AttributeType: N
+      KeySchema:
+      - AttributeName: PK
+        KeyType: HASH
+      - AttributeName: SK
+        KeyType: RANGE
+      GlobalSecondaryIndexes:
+      - IndexName: GameScoreIndex
+        KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: score
+          KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
+  RegisterScoreFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: RegisterScoreFunction
+      Handler: registerScore.handler
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+          Resource:
+          - Fn::GetAtt:
+            - GameScoresTable
+            - Arn
+      Events:
+        RegisterScoreApi:
+          Type: HttpApi
+          Properties:
+            Path: /scores
+            Method: post
+    Metadata:
+      SamResourceId: RegisterScoreFunction
+  GetLeaderboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: GetLeaderboardFunction
+      Handler: getLeaderboard.handler
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - dynamodb:Query
+          - dynamodb:GetItem
+          - dynamodb:Scan
+          Resource:
+          - Fn::GetAtt:
+            - GameScoresTable
+            - Arn
+          - Fn::Sub: ${GameScoresTable.Arn}/index/*
+      Events:
+        GetLeaderboardApi:
+          Type: HttpApi
+          Properties:
+            Path: /scores
+            Method: get
+    Metadata:
+      SamResourceId: GetLeaderboardFunction
+Outputs:
+  WebUrl:
+    Description: URL base da HTTP API gerada pelo SAM
+    Value:
+      Fn::Sub: https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com

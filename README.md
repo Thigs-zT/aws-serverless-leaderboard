@@ -2,57 +2,86 @@
 
 ![Leaderboard API Architecture Diagram](./arquitetura_leaderboard.png)
 
-A fully serverless, highly scalable, and cost-effective REST API backend designed to manage leaderboards and player scores for games. Built using AWS core serverless services, this project implements a single-table design pattern with Amazon DynamoDB.
+A fully serverless, highly scalable, and cost-effective REST/HTTP API backend designed to manage leaderboards and player scores for digital games. Built using core AWS serverless services, this project implements a Single-Table Design pattern with Amazon DynamoDB, optimized query indexing, custom API Key protection, CloudWatch observability, and Infrastructure as Code (IaC) via AWS SAM.
 
 ## Architecture
 
-The system uses a 100% serverless architecture on AWS:
+The system uses a 100% serverless architecture deployed on AWS:
 
-- **Amazon API Gateway (HTTP API):** Acts as the public entry point, routing incoming HTTP requests to the appropriate AWS Lambda functions.
-- **AWS Lambda (Node.js 24.x):** Executes stateless business logic for registering player scores and querying top leaderboard rankings.
-- **Amazon DynamoDB:** Stores game scores and player stats using On-Demand capacity for zero idle cost and seamless scaling.
-- **AWS IAM:** Enforces least-privilege execution roles between Lambda functions and DynamoDB resources.
+- **Amazon API Gateway (HTTP API v2):** Serves as the high-performance public entry point, routing requests to backend compute resources.
+- **AWS Lambda (Node.js 18.x):** Executes stateless business logic for score ingestion, data validation, API key authentication, and leaderboard retrieval.
+- **Amazon DynamoDB:** Stores player scores and game metadata using On-Demand capacity for zero idle cost and auto-scaling performance.
+- **AWS SAM (Serverless Application Model):** Manages the entire cloud infrastructure declaratively using `template.yaml`.
+- **Amazon CloudWatch:** Collects execution logs and metrics to monitor system health and latency.
 
-## Database Design
+## Database Design & Scalability (GSI)
 
-The database uses Amazon DynamoDB with a Single-Table Design pattern:
+The database utilizes Amazon DynamoDB with a Single-Table Design pattern optimized for large-scale queries:
 
-- **Table Name:** `GameScores`
+- **Table Name:** `GameScores` (or `GameScores-SAM` via IaC)
 - **Partition Key (`PK`):** `GAME#{game_id}` (e.g., `GAME#SpaceShooter_v1`)
 - **Sort Key (`SK`):** `PLAYER#{player_id}` (e.g., `PLAYER#usr_1029`)
 - **Attributes:** `player_name` (String), `score` (Number), `updated_at` (ISO Timestamp)
 
+### Performance Optimization
+
+To prevent high memory consumption and timeouts during sorting on large datasets, a **Global Secondary Index (GSI)** is configured:
+
+- **Index Name:** `GameScoreIndex`
+- **Index Partition Key:** `PK` (`S`)
+- **Index Sort Key:** `score` (`N`)
+
+This index allows direct, sorted queries from the database layer (`ScanIndexForward: false`), eliminating in-memory Array sorting inside the Lambda runtime.
+
+## Security & Best Practices
+
+- **API Key Ingestion Guard:** The `POST /scores` endpoint validates an `x-api-key` request header directly in the compute layer, blocking unauthorized payloads with HTTP 403 Forbidden.
+- **Data Sanitization:** DynamoDB partition and sort keys (`PK`/`SK`) are removed prior to sending response payloads to decouple database implementation details from client applications.
+- **Least-Privilege IAM Policies:** Scoped execution roles grant Lambda functions precise access to DynamoDB tables and GSI indexes.
+- **Cost Governance:** AWS Budgets configured with zero-spend threshold alerts ($0.01) to prevent unexpected billing.
+
 ## API Endpoints
 
 ### 1. Register Score
+
+Registers or updates a player score for a given game ID.
+
 - **Method:** `POST`
 - **Path:** `/scores`
-- **Headers:** `Content-Type: application/json`
-- **Body:**
+- **Headers:** `Content-Type: application/json`, `x-api-key: YOUR_CUSTOM_API_KEY`
+- **Request Body:**
+
 ```json
 {
   "game_id": "SpaceShooter_v1",
-  "player_id": "usr_1029",
-  "player_name": "AcePlayer",
-  "score": 15000
+  "player_id": "usr_001",
+  "player_name": "PlayerName",
+  "score": 99999
 }
 ```
 
-Response (200 OK):
+Response (201 Created):
 
 ```json
 {
-  "message": "Score registered successfully",
-  "player": "AcePlayer",
-  "score": 15000
+  "message": "Score registered successfully!"
+}
+```
+
+Response (403 Forbidden - Missing/Invalid Key):
+
+```json
+{
+  "message": "Forbidden: Invalid or missing API Key"
 }
 ```
 
 ### 2. Get Top Leaderboard
 
-Method: GET
+Retrieves the top ranking scores for a specific game sorted in descending order.
 
-Path: /scores?game_id=SpaceShooter_v1
+- **Method:** `GET`
+- **Path:** `/scores?game_id=SpaceShooter_v1`
 
 Response (200 OK):
 
@@ -61,35 +90,51 @@ Response (200 OK):
   "game_id": "SpaceShooter_v1",
   "leaderboard": [
     {
-      "player_id": "usr_1029",
-      "player_name": "AcePlayer",
-      "score": 15000,
-      "updated_at": "2026-08-11T03:48:11.927Z"
+      "player_id": "usr_001",
+      "player_name": "PlayerName",
+      "score": 99999,
+      "updated_at": "2026-08-12T02:42:30.787Z"
     }
   ]
 }
 ```
 
-## Local Testing Examples (PowerShell)
+## Infrastructure as Code (AWS SAM)
 
-Registering a Score:
+To build, test, and deploy this infrastructure automatically:
 
-```powershell
-Invoke-RestMethod -Uri "https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com/scores" `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body '{"game_id": "SpaceShooter_v1", "player_id": "usr_1029", "player_name": "AcePlayer", "score": 15000}'
+```bash
+# Build the application
+sam build
+
+# Deploy to AWS (guided first-time setup)
+sam deploy --guided
+
+# Subsequent deploys
+sam deploy
 ```
 
-Fetching Top Scores:
+## Local Testing (PowerShell)
+
+Register a Score (POST):
 
 ```powershell
-Invoke-RestMethod -Uri "https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com/scores?game_id=SpaceShooter_v1"
+$headers = @{
+    "x-api-key" = "YOUR_CUSTOM_API_KEY"
+}
+
+$body = @{
+    game_id     = "SpaceShooter_v1"
+    player_id   = "usr_001"
+    player_name = "PlayerName"
+    score       = 99999
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "https://<API_URL>/scores" -Method POST -Headers $headers -ContentType "application/json" -Body $body
 ```
 
-## Security & Best Practices
+Fetch Leaderboard (GET):
 
-- **Cost Protection:** AWS Budgets configured with zero-spend threshold alerts.
-- **IAM Authorization:** Role-based access control with scoped permissions for DynamoDB actions.
-- **Data Abstraction:** DynamoDB internal keys (PK/SK) are sanitized at the Lambda layer before returning response payloads.
-- **Data Validation:** Input parsing and fallback handling on Lambda execution.
+```powershell
+Invoke-RestMethod -Uri "https://<API_URL>/scores?game_id=SpaceShooter_v1"
+```

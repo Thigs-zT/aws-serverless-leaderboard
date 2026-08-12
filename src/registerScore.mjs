@@ -30,7 +30,7 @@ export const handler = async (event) => {
     }
 
     const command = new PutCommand({
-      TableName: "GameScores",
+      TableName: process.env.TABLE_NAME || "GameScores",
       Item: {
         PK: `GAME#${game_id}`,
         SK: `PLAYER#${player_id}`,
